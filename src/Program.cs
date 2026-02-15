@@ -1,4 +1,4 @@
-﻿// Decompiled with JetBrains decompiler
+// Decompiled with JetBrains decompiler
 // Type: sh4_asm.Program
 // Assembly: sh4_asm, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
 // MVID: 52066F41-EA72-4C12-B6F3-5FED11FB8217
@@ -2879,6 +2879,18 @@ namespace sh4_asm
                 case '"':
                     return Program.ReadString(input_line, line_number, statement_number, ref index, module);
                 case '#':
+                    // Check if # is followed by a number (immediate value) or letter (directive/symbol)
+                    if (index + 1 < input_line.Length)
+                    {
+                        char nextChar = input_line[index + 1];
+                        // If # is followed by a digit or minus sign, it's an immediate value
+                        if (char.IsDigit(nextChar) || nextChar == '-')
+                        {
+                            return Program.ReadNumber(input_line, line_number, statement_number, ref index, module);
+                        }
+                    }
+                    // Otherwise it's a directive or symbol
+                    return Program.ReadSymbol(input_line, line_number, statement_number, ref index, module);
                 case '.':
                 case '/':
                 case '_':
@@ -3547,10 +3559,17 @@ namespace sh4_asm
             Program.Token token = new Program.Token();
             StringBuilder stringBuilder = new StringBuilder();
             token.parse_type = Program.ParseType.integer_number;
-            // Console.WriteLine()
+
+            // Handle optional # prefix for immediate values (SH4 format)
+            // Supports both "mov #0x0,r0" and "mov 0x0,r0"
+            if (index < input_line.Length && input_line[index] == '#')
+            {
+                ++index; // Skip the # character but don't add it to the token
+            }
+
             if (index < input_line.Length - 1 && input_line[index] == '0')
             {
-                if (input_line[index + 1] == 'x')
+                if (input_line[index + 1] == 'x' || input_line[index + 1] == 'X')
                 {
                     if (input_line.Length - 1 < 3)
                         Program.Error(input_line, module, line_number, index, "Invalid Hex");
@@ -3558,14 +3577,13 @@ namespace sh4_asm
                     stringBuilder.Append(input_line[index]);
                     stringBuilder.Append(input_line[index + 1]);
                     index += 2;
-
                 }
             }
             else if (index < input_line.Length - 1 && input_line[index] == '-')
             {
                 if (index + 2 < input_line.Length - 1)
                 {
-                    if (input_line[index + 2] == 'x')
+                    if (input_line[index + 2] == 'x' || input_line[index + 2] == 'X')
                     {
                         token.parse_type = Program.ParseType.hex_number;
                         stringBuilder.Append(input_line[index]);
@@ -3579,9 +3597,8 @@ namespace sh4_asm
                         ++index;
                     }
                 }
-
             }
-            // Console.WriteLine()
+
             bool flag = true;
 
             while (index < input_line.Length & flag)
@@ -3649,20 +3666,15 @@ namespace sh4_asm
                         continue;
                 }
             }
-            // token.raw_string = stringBuilder.ToString();
+
             token.raw_string = stringBuilder.ToString();
             if (token.parse_type == Program.ParseType.hex_number)
             {
                 if (token.raw_string[0] == '-' && token.raw_string[2] == 'x')
                 {
-                    //Console.WriteLine(token.raw_string);
                     token.raw_string = token.raw_string.Substring(1);
-
-                    //Console.WriteLine(token.raw_string);
                     int intValue = (Convert.ToInt16(token.raw_string, 16) * -1) & 0xFF;
                     token.raw_string = "0x" + intValue.ToString("X2");
-                    //Console.WriteLine(tokSen.raw_string);
-
                 }
             }
             return token;
